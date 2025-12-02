@@ -1,0 +1,60 @@
+# Versión de formato de Docker Compose
+version: '3.8'
+
+services:
+  # ----------------------------------
+  # 1. SERVICIO DE BASE DE DATOS (DB)
+  #    -> Usa tus credenciales: bdSck, postgres, 1234
+  # ----------------------------------
+  db:
+    # Usamos la imagen oficial de PostgreSQL.
+    image: postgres:14-alpine
+    container_name: mi_app_db
+    restart: always
+    environment:
+      # Credenciales de la DB que coinciden con tu .env.local:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: bdSck
+    ports:
+      # Mapea el puerto de la DB del contenedor (5432) a tu máquina local.
+      - "5432:5432"
+    volumes:
+      # Persistencia de datos: guarda los datos de la DB en tu disco local.
+      - db_data:/var/lib/postgresql/data
+
+  # ----------------------------------
+  # 2. SERVICIO DE APLICACIÓN BACKEND (API)
+  # ----------------------------------
+  api:
+    # Asume que tienes un Dockerfile en el mismo directorio para construir tu imagen.
+    build: .
+    container_name: mi_app_backend
+    # **AÑADIDO: Espera simple para dar tiempo a la DB**
+    command: ["/bin/sh", "-c", "sleep 5 && npm run dev"] # Usando 'npm run dev' ya que es Next.js
+    # Mapea el puerto de la API del contenedor (3000) a tu máquina local (3000).
+    ports:
+      - "3000:3000"
+    # El backend necesita a la DB para iniciar, así que depende de ella.
+    depends_on:
+      - db
+    environment:
+      # ¡CORRECCIÓN CLAVE!: El host ahora es el nombre del servicio 'db' (el nombre del contenedor de la DB).
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: 1234
+      DATABASE_NAME: bdSck
+      # Otras variables de tu aplicación...
+      NODE_ENV: development
+    # ¡CORRECCIÓN CLAVE!: El volumen se mapea a /app para coincidir con el WORKDIR de tu Dockerfile.
+    volumes:
+      - .:/app
+      # AÑADIDO: Volumen anónimo para excluir node_modules del mapeo de tu máquina local.
+      # Esto asegura que se usen las dependencias instaladas DENTRO del contenedor.
+      - /app/node_modules
+
+# Definición de volúmenes para persistencia
+volumes:
+  db_data:
+    driver: local

@@ -1,0 +1,42 @@
+node_modules
+package-lock.json
+npm-debug.log
+yarn-error.log
+
+# Git
+.git
+.gitignore
+
+# Builds
+dist
+build
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# System
+.DS_Store
+Thumbs.db
+
+# Stores
+.pnpm-store
+.npm
+.cache
+
+# IDEs
+.vscode
+.idea
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Otros que pesan
+public/uploads
+public/videos
+public/images/raw

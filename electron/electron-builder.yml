@@ -1,0 +1,22 @@
+directories:
+  output: dist
+  buildResources: build
+
+appId: com.sonrisasycolores.app
+productName: Sonrisas y Colores Kids
+
+files:
+  - electron/**/*
+  - .next/standalone/**/*
+  - .next/static/**/*
+  - public/**/*
+  - package.json
+
+extraMetadata:
+  main: electron/main.js
+
+asar: true
+
+win:
+  target: nsis
+  icon: public/icon.ico
