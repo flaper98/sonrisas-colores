@@ -1,10 +1,13 @@
 import { query } from "@/lib/db"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+// Cambia Request por NextRequest y params debe ser Promise<{ id: string }>
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
   try {
-
-    const { id } = await Promise.resolve(params)
+    const { id } = await params  // Simplifica: no necesitas Promise.resolve
     const result = await query("SELECT * FROM products WHERE id = $1", [Number.parseInt(id, 10)])
 
     if (result.rows.length === 0) {
@@ -18,25 +21,26 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await Promise.resolve(params)
+    const { id } = await params  // Simplifica
     const body = await request.json()
-    const { name, category, price, quantity, description , minStock } = body
+    const { name, category, price, quantity, description, minStock } = body
 
     const result = await query(
-      "UPDATE products SET name = $1, category = $2, price = $3, quantity = $4, description = $5, min_stock  = $6 , updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *",
-      [
-        name,
-        category,
-        Number.parseFloat(price),
-        Number.parseInt(quantity, 10),
-        description || null,
-        Number(minStock ?? 0),
-        Number.parseInt(id, 10),
-
-
-      ],
+        "UPDATE products SET name = $1, category = $2, price = $3, quantity = $4, description = $5, min_stock = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *",
+        [
+          name,
+          category,
+          Number.parseFloat(price),
+          Number.parseInt(quantity, 10),
+          description || null,
+          Number(minStock ?? 0),
+          Number.parseInt(id, 10),
+        ],
     )
 
     if (result.rows.length === 0) {
@@ -50,9 +54,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await Promise.resolve(params)
+    const { id } = await params  // Simplifica
     const result = await query("DELETE FROM products WHERE id = $1 RETURNING *", [Number.parseInt(id, 10)])
 
     if (result.rows.length === 0) {

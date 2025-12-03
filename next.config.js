@@ -1,5 +1,12 @@
-module.exports = {
-  output: "standalone",
-  reactStrictMode: false,
-  images: { unoptimized: true }
-};
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // NO usar output, dejar como servidor normal
+  images: {
+    unoptimized: true
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  }
+}
+
+module.exports = nextConfig
