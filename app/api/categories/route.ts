@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("[v0] GET categories error:", error)
     return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 })
-  }
+   }
 }
 
 export async function POST(request: Request) {
