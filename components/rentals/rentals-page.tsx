@@ -8,34 +8,27 @@ import { toast } from "sonner";
 import { RentalsTable } from "@/components/rentals/RentalsTable";
 import { Modal } from "@/components/ui/Modal";
 import { useModal } from "@/app/hooks/useModal";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { Rental } from "@/components/types/rental";
 import type { RentalFormData } from "@/components/types/rentalFormData";
 
-/*export interface Rental {
-  id: number;
-  client_name: string;
-  client_dni: string;
-  num_children: number;
-  duration_minutes: number;
-  start_time: string;
-  end_time: string;
-  total_price: number;
-  discount_applied: boolean;
-  discount_amount: number;
-  status: "active" | "completed" | "cancelled";
-  notes?: string;
-}*/
-
 export function RentalsPage() {
   const [rentals, setRentals] = useState<Rental[]>([]);
+  const [filtered, setFiltered] = useState<Rental[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rentalToEdit, setRentalToEdit] = useState<Rental | null>(null);
   const [isRealEdit, setIsRealEdit] = useState(false);
 
+  // ⭐ NUEVOS ESTADOS DE FILTRO
+  const [filterDate, setFilterDate] = useState("today");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const successModal = useModal();
 
+  // ==========================
+  // CARGAR ALQUILERES
+  // ==========================
   useEffect(() => {
     fetchRentals();
   }, []);
@@ -43,20 +36,87 @@ export function RentalsPage() {
   const fetchRentals = async () => {
     try {
       setLoading(true);
-
-      const response = await fetch("/api/rentals?limit=100");
-      if (!response.ok) throw new Error("Error fetching rentals");
-
-      const data = await response.json();
+      const res = await fetch("/api/rentals?limit=100");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
       setRentals(data);
+      setFiltered(data);
     } catch (e) {
-      console.error(e);
       toast.error("Error al cargar alquileres");
     } finally {
       setLoading(false);
     }
   };
 
+  // ==========================
+  //   FILTROS AVANZADOS
+  // ==========================
+  useEffect(() => {
+    filterRentals();
+  }, [rentals, filterDate, search, statusFilter]);
+
+  const filterRentals = () => {
+    let result = [...rentals];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // === FILTRO POR FECHA ===
+    if (filterDate === "today") {
+      result = result.filter((r) => {
+        const st = new Date(r.start_time);
+        return st.toDateString() === today.toDateString();
+      });
+    }
+
+    if (filterDate === "week") {
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+      result = result.filter((r) => new Date(r.start_time) >= weekAgo);
+    }
+
+    if (filterDate === "month") {
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(today.getMonth() - 1);
+      result = result.filter((r) => new Date(r.start_time) >= monthAgo);
+    }
+
+    // === FILTRO POR ESTADO ===
+    const now = new Date().getTime();
+
+    result = result.filter((r) => {
+      const end = new Date(r.end_time).getTime();
+      const diff = end - now;
+
+      if (statusFilter === "active") {
+        return r.status !== "completed" && diff > 5 * 60000;
+      }
+      if (statusFilter === "expiring") {
+        return r.status !== "completed" && diff > 0 && diff <= 5 * 60000;
+      }
+      if (statusFilter === "expired") {
+        return r.status !== "completed" && diff <= 0;
+      }
+      if (statusFilter === "completed") {
+        return r.status === "completed";
+      }
+      return true;
+    });
+
+    // === BÚSQUEDA ===
+    if (search.trim() !== "") {
+      result = result.filter(
+          (r) =>
+              r.client_name.toLowerCase().includes(search.toLowerCase()) ||
+              r.client_dni.includes(search)
+      );
+    }
+
+    setFiltered(result);
+  };
+
+  // ==========================
+  // ABRIR FORMULARIOS
+  // ==========================
   const openCreateForm = () => {
     setRentalToEdit(null);
     setIsRealEdit(false);
@@ -76,11 +136,13 @@ export function RentalsPage() {
   };
 
   const closeForm = () => {
-    setShowForm(false);
     setRentalToEdit(null);
+    setShowForm(false);
   };
 
-
+  // ==========================
+  // EDITAR DATOS
+  // ==========================
   const handleRealEditRental = async (data: RentalFormData, rentalId?: number) => {
     try {
       const rental = rentals.find((r) => r.id === rentalId);
@@ -101,11 +163,7 @@ export function RentalsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          client_name: data.client_name,
-          client_dni: data.client_dni,
-          num_children: data.num_children,
-          duration_minutes: data.duration_minutes,
-          total_price: data.total_price,
+          ...data,
           start_time: startLocal,
           end_time: endLocal,
           discount_applied: rental.discount_applied,
@@ -115,17 +173,20 @@ export function RentalsPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) throw new Error();
 
       await fetchRentals();
       closeForm();
       toast.success("Datos actualizados");
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo actualizar");
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo actualizar el alquiler");
     }
   };
 
+  // ==========================
+  // EXTENDER ALQUILER
+  // ==========================
   const handleUpdateRental = async (data: RentalFormData, rentalId?: number) => {
     try {
       const rental = rentals.find((r) => r.id === rentalId);
@@ -152,16 +213,20 @@ export function RentalsPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Extend failed");
+      if (!res.ok) throw new Error();
 
       await fetchRentals();
       closeForm();
       toast.success("Tiempo extendido");
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       toast.error("No se pudo extender");
     }
   };
+
+  // ==========================
+  // CREAR ALQUILER NUEVO
+  // ==========================
   const handleCreateRental = async (data: RentalFormData) => {
     try {
       const start = new Date(data.start_time);
@@ -181,21 +246,24 @@ export function RentalsPage() {
         body: JSON.stringify({
           ...data,
           start_time: startLocal,
-          end_time: endLocal
-        })
+          end_time: endLocal,
+        }),
       });
 
-      if (!res.ok) throw new Error("Create failed");
+      if (!res.ok) throw new Error();
 
       await fetchRentals();
       closeForm();
       toast.success("Alquiler registrado");
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       toast.error("No se pudo registrar el alquiler");
     }
   };
 
+  // ==========================
+  // COMPLETAR ALQUILER
+  // ==========================
   const handleCompleteRental = async (id: number) => {
     try {
       const rental = rentals.find((r) => r.id === id);
@@ -207,38 +275,114 @@ export function RentalsPage() {
         body: JSON.stringify({ ...rental, status: "completed" }),
       });
 
-      if (!res.ok) throw new Error("Complete failed");
+      if (!res.ok) throw new Error();
 
       await fetchRentals();
       toast.success("Alquiler completado");
     } catch (e) {
-      console.error(e);
       toast.error("Error completando alquiler");
     }
   };
 
   return (
-      <div className="space-y-8">
+      <div className="space-y-6">
 
-        {/* HEADER */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h2 className="text-3xl font-semibold tracking-tight">Alquileres</h2>
-            <p className="text-muted-foreground mt-1">
-              Gestiona los alquileres activos y completados
-            </p>
+        {/* ======================
+          FILTROS SUPERIORES
+      ======================= */}
+        <div className="bg-white border p-4 rounded-xl shadow-sm space-y-3">
+
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold">Alquileres</h2>
+
+            <Button onClick={openCreateForm} className="bg-primary text-white gap-2">
+              <Plus className="w-4 h-4" />
+              Nuevo Alquiler
+            </Button>
           </div>
 
-          <Button
-              onClick={openCreateForm}
-              className="bg-primary text-white hover:bg-primary/90 shadow-sm gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Alquiler
-          </Button>
+          {/* ========== FILTRO DE FECHA ========== */}
+          <div className="flex gap-2">
+            <Button
+                variant={filterDate === "today" ? "default" : "outline"}
+                onClick={() => setFilterDate("today")}
+            >
+              Hoy
+            </Button>
+
+            <Button
+                variant={filterDate === "week" ? "default" : "outline"}
+                onClick={() => setFilterDate("week")}
+            >
+              Últimos 7 días
+            </Button>
+
+            <Button
+                variant={filterDate === "month" ? "default" : "outline"}
+                onClick={() => setFilterDate("month")}
+            >
+              Últimos 30 días
+            </Button>
+
+            <Button
+                variant={filterDate === "all" ? "default" : "outline"}
+                onClick={() => setFilterDate("all")}
+            >
+              Todos
+            </Button>
+          </div>
+
+          {/* ========== BÚSQUEDA ========== */}
+          <input
+              type="text"
+              placeholder="Buscar por nombre o DNI..."
+              className="w-full border px-3 py-2 rounded-md"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+          />
+
+          {/* ========== FILTRO POR ESTADO ========== */}
+          <div className="flex gap-2">
+            <Button
+                variant={statusFilter === "all" ? "default" : "outline"}
+                onClick={() => setStatusFilter("all")}
+            >
+              Todos
+            </Button>
+
+            <Button
+                variant={statusFilter === "active" ? "default" : "outline"}
+                onClick={() => setStatusFilter("active")}
+            >
+              🟢 Activos
+            </Button>
+
+            <Button
+                variant={statusFilter === "expiring" ? "default" : "outline"}
+                onClick={() => setStatusFilter("expiring")}
+            >
+              🟡 Por vencer
+            </Button>
+
+            <Button
+                variant={statusFilter === "expired" ? "default" : "outline"}
+                onClick={() => setStatusFilter("expired")}
+            >
+              🔴 Vencidos
+            </Button>
+
+            <Button
+                variant={statusFilter === "completed" ? "default" : "outline"}
+                onClick={() => setStatusFilter("completed")}
+            >
+              🔵 Completados
+            </Button>
+          </div>
         </div>
 
-        {/* FORM */}
+        {/* ======================
+          FORMULARIO
+      ======================= */}
         {showForm && (
             <div className="border rounded-xl bg-white p-6 shadow-sm">
               <RentalForm
@@ -246,38 +390,43 @@ export function RentalsPage() {
                   isRealEdit={isRealEdit}
                   onSubmit={
                     rentalToEdit
-                        ? (isRealEdit ? handleRealEditRental : handleUpdateRental)
-                        : handleCreateRental   // ⬅ REGISTRO NUEVO
+                        ? isRealEdit
+                            ? handleRealEditRental
+                            : handleUpdateRental
+                        : handleCreateRental
                   }
                   onCancel={closeForm}
               />
-
             </div>
         )}
 
-        {/* TABLA */}
-        {!loading &&(
+        {/* ======================
+          TABLA FILTRADA
+      ======================= */}
+        {!loading && (
             <RentalsTable
-                rentals={rentals}
+                rentals={filtered}
                 onComplete={handleCompleteRental}
                 onEdit={openEditForm}
                 onRealEdit={openRealEditForm}
             />
         )}
 
-        {/* MODAL DE ÉXITO */}
+        {/* ======================
+          MODAL
+      ======================= */}
         <Modal show={successModal.show} onClose={successModal.close} title="Alquiler registrado">
           <div className="text-green-600 text-6xl animate-bounce">🎉</div>
           <p className="text-lg font-medium">¡El alquiler se registró con éxito!</p>
 
           <button
               onClick={successModal.close}
-              className="mt-4 px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg
-            font-semibold shadow-sm transition focus:ring-2 focus:ring-green-400"
+              className="mt-4 px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
           >
             Aceptar
           </button>
         </Modal>
+
       </div>
   );
 }

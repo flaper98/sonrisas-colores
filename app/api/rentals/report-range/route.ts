@@ -19,6 +19,8 @@ export async function GET(request: Request) {
                  DATE(start_time) AS date,
                  product_id,
                  client_name,
+                 client_dni,
+                 num_children,   
                  status,
                  total_price AS total
              FROM rentals

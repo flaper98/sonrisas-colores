@@ -20,8 +20,11 @@ interface ReportData {
 
   // Nuevos campos para la tabla por rango
   client_name?: string
+  client_dni?: string
+
   status?: string
   total?: number
+  num_children?: number
 }
 
 export function ReportsPage() {
@@ -84,6 +87,13 @@ export function ReportsPage() {
   }
 
 
+  // Formato seguro sin timezone
+  function formatDateNoTimezone(dateString: string) {
+    if (!dateString) return "-";
+    const [year, month, day] = dateString.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
 
   // -------------------
   // EXPORTAR PDF
@@ -91,18 +101,28 @@ export function ReportsPage() {
   const handleExportPDF = () => {
     const doc = new jsPDF()
 
-    doc.text("Reporte de Alquileres", 14, 15)
+    // Construir título dinámico según rango
+    const start = formatDateNoTimezone(startDate);
+    const end = formatDateNoTimezone(endDate);
+
+    const title = `REPORTE DE ALQUILERES\nDesde ${start}  Hasta ${end}`;
+
+    // Título centrado
+    doc.setFontSize(14);
+    doc.text(title, 105, 15, { align: "center" });
 
     const tableData = reportData.map((item) => [
       new Date(item.date).toLocaleDateString("es-PE"),
       item.client_name || "-",
+      item.client_dni || "-",
+      item.num_children||"-",
       item.status || "-",
       item.total ? `S/ ${item.total}` : "-",
     ])
 
     autoTable(doc, {
-      startY: 20,
-      head: [["Fecha", "Cliente", "Estado", "Total"]],
+      startY: 30,
+      head: [["FECHA", "CLIENTE", "DNI", "CANTIDAD" , "ESTADO", "TOTAL"]],
       body: tableData,
     })
 
@@ -116,10 +136,12 @@ export function ReportsPage() {
   // -------------------
   const handleExportCSV = () => {
     const csv = [
-      ["Fecha", "Cliente", "Estado", "Total"],
+      ["FECHA", "CLIENTE", "DNI", "CANTIDAD" , "ESTADO", "TOTAL"],
       ...reportData.map((item) => [
         item.date,
         item.client_name || "",
+        item.client_dni || "-",
+        item.num_children || "",
         item.status || "",
         item.total || "",
       ]),
@@ -142,7 +164,7 @@ export function ReportsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-foreground">Reportes de Alquileres</h2>
+            <h2 className="text-3xl font-bold text-foreground">REPORTES DE ALQUILERES</h2>
             <p className="text-muted-foreground mt-1">Análisis detallado por fechas</p>
           </div>
 
@@ -172,7 +194,7 @@ export function ReportsPage() {
 
         {/* FILTRO DE RANGO */}
         <Card className="p-4 bg-white border border-border">
-          <h3 className="text-lg font-bold mb-3">Filtrar Alquileres por Rango</h3>
+          <h3 className="text-lg font-bold mb-3">FILTRAR ALQUILERES POR RANGO</h3>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex flex-col">
@@ -220,10 +242,12 @@ export function ReportsPage() {
                   <table className="w-full text-sm">
                     <thead className="border-b border-border">
                     <tr>
-                      <th className="py-3 px-4 text-left font-bold">Fecha</th>
-                      <th className="py-3 px-4 text-left font-bold">Cliente</th>
-                      <th className="py-3 px-4 text-left font-bold">Estado</th>
-                      <th className="py-3 px-4 text-left font-bold">Total</th>
+                      <th className="py-3 px-4 text-left font-bold">FECHA</th>
+                      <th className="py-3 px-4 text-left font-bold">CLIENTE</th>
+                      <th className="py-3 px-4 text-left font-bold">DNI</th>
+                      <th className="py-3 px-4 text-left font-bold">CANTIDAD</th>
+                      <th className="py-3 px-4 text-left font-bold">ESTADO</th>
+                      <th className="py-3 px-4 text-left font-bold">TOTAL</th>
                     </tr>
                     </thead>
 
@@ -232,6 +256,8 @@ export function ReportsPage() {
                         <tr key={idx} className="border-b border-border hover:bg-gray-100">
                           <td className="py-3 px-4">{new Date(row.date).toLocaleDateString("es-PE")}</td>
                           <td className="py-3 px-4">{row.client_name || "-"}</td>
+                          <td className="py-3 px-4">{row.client_dni || "-"}</td>
+                          <td className="py-3 px-4">{row.num_children || "-"}</td>
                           <td className="py-3 px-4">{row.status || "-"}</td>
                           <td className="py-3 px-4 font-bold text-primary">
                             {row.total ? `S/ ${row.total}` : "-"}
