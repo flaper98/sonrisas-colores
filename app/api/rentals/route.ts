@@ -1,5 +1,5 @@
-import { query } from "@/lib/db"
-import { NextResponse } from "next/server"
+import { query } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 // Normalizador asegurando que las fechas siempre regresan en ISO Z
 function normalizeRental(row: any) {
@@ -57,9 +57,13 @@ export async function POST(request: Request) {
     try {
         const body = await request.json()
 
-        // 🔥 CONVERTIR A UTC ANTES DE GUARDAR
+        // Convertir start_time a ISO
         const startISO = new Date(body.start_time).toISOString()
-        const endISO = new Date(body.end_time).toISOString()
+
+        // 🔥 Calcular end_time automáticamente
+        const endISO = new Date(
+            new Date(body.start_time).getTime() + (body.duration_minutes * 60000)
+        ).toISOString()
 
         const result = await query(
             `INSERT INTO rentals (
@@ -68,14 +72,14 @@ export async function POST(request: Request) {
                 discount_applied, discount_amount, notes,
                 client_name, client_dni
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-            RETURNING *`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                 RETURNING *`,
             [
                 body.product_id || null,
                 Number(body.num_children),
                 Number(body.duration_minutes),
-                startISO,             // ⬅ CORREGIDO
-                endISO,               // ⬅ CORREGIDO
+                startISO,
+                endISO,
                 Number(body.total_price),
                 body.discount_applied ?? false,
                 Number(body.discount_amount ?? 0),
@@ -85,12 +89,10 @@ export async function POST(request: Request) {
             ]
         )
 
-        return NextResponse.json(
-            normalizeRental(result.rows[0]),
-            { status: 201 }
-        )
+        return NextResponse.json(normalizeRental(result.rows[0]), { status: 201 })
     } catch (error) {
-        console.error("[v0] POST rental error:", error)
+        console.error("[POST rental error]", error)
         return NextResponse.json({ error: "Failed to create rental" }, { status: 500 })
     }
 }
+

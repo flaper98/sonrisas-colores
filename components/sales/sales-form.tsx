@@ -4,34 +4,43 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Save, Search } from "lucide-react";
+import { X, Save, Search, Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
-import type { Product } from "@/components/types/product"
+import type { Product } from "@/components/types/product";
 import { ReactNode } from "react";
 
-/*interface Product {
-  id: number;
+interface SaleItem {
+  product_id: number;
+  quantity: number;
+  unit_price: number;
   name: string;
-  price: number;
-  category: string;
-}*/
-
-interface SalesFormProps {
-  onSubmit: (sales: any[]) => void;
-  onCancel: () => void;
 }
 
-export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
+interface SaleToEdit {
+  id: number;
+  items: {
+    product_id: number;
+    quantity: number;
+    unit_price: number;
+    product_name: string;
+  }[];
+}
+
+interface SalesFormProps {
+  onSubmit: (data: any[]) => void;
+  onCancel: () => void;
+  saleToEdit?: SaleToEdit | null;
+}
+
+export function SalesForm({ onSubmit, onCancel, saleToEdit }: SalesFormProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [items, setItems] = useState<
-      { product_id: number; quantity: number; unit_price: number; name: string }[]
-  >([]);
+  const [items, setItems] = useState<SaleItem[]>([]);
 
-  // -------------------------------
-  // CARGA PRODUCTOS
-  // -------------------------------
+  // ----------------------------------------------------------
+  // LOAD PRODUCTS
+  // ----------------------------------------------------------
   const fetchProducts = useCallback(async () => {
     try {
       const res = await fetch("/api/products");
@@ -48,9 +57,25 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
     fetchProducts();
   }, [fetchProducts]);
 
-  // -------------------------------
-  // FILTRO
-  // -------------------------------
+  // ----------------------------------------------------------
+  // LOAD ITEMS IF EDITING
+  // ----------------------------------------------------------
+  useEffect(() => {
+    if (saleToEdit) {
+      setItems(
+          saleToEdit.items.map((i) => ({
+            product_id: i.product_id,
+            quantity: Number(i.quantity),
+            unit_price: Number(i.unit_price ?? 0),
+            name: i.product_name,
+          }))
+      );
+    }
+  }, [saleToEdit]);
+
+  // ----------------------------------------------------------
+  // FILTER SEARCH RESULTS
+  // ----------------------------------------------------------
   const filteredProducts = useMemo(() => {
     if (!search.trim()) return [];
     return products.filter((p) =>
@@ -58,9 +83,9 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
     );
   }, [products, search]);
 
-  // -------------------------------
-  // AGREGAR PRODUCTO
-  // -------------------------------
+  // ----------------------------------------------------------
+  // ADD PRODUCT
+  // ----------------------------------------------------------
   const addProduct = (product: Product) => {
     setItems((prev) => {
       const exists = prev.find((i) => i.product_id === product.id);
@@ -83,6 +108,19 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
     setSearch("");
   };
 
+  // ----------------------------------------------------------
+  // UPDATE QUANTITY +/-
+  // ----------------------------------------------------------
+  const changeQty = (id: number, amount: number) => {
+    setItems((prev) =>
+        prev.map((i) =>
+            i.product_id === id
+                ? { ...i, quantity: Math.max(1, i.quantity + amount) }
+                : i
+        )
+    );
+  };
+
   const updateQuantity = (id: number, qty: number) => {
     setItems((prev) =>
         prev.map((i) =>
@@ -95,11 +133,17 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
     setItems((prev) => prev.filter((i) => i.product_id !== id));
   };
 
+  // ----------------------------------------------------------
+  // TOTAL GENERAL
+  // ----------------------------------------------------------
   const totalGeneral = useMemo(
       () => items.reduce((acc, i) => acc + i.quantity * i.unit_price, 0),
       [items]
   );
 
+  // ----------------------------------------------------------
+  // SUBMIT
+  // ----------------------------------------------------------
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -108,22 +152,33 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
       return;
     }
 
-    const formattedItems = items.map((i) => ({
+    const payload = items.map((i) => ({
       product_id: i.product_id,
       quantity: Number(i.quantity),
       unit_price: Number(i.unit_price),
-      notes: null,
     }));
 
-    onSubmit(formattedItems);
-    setItems([]);
+    onSubmit(payload);
   };
 
-  // -------------------------------
+  // ----------------------------------------------------------
   // UI
-  // -------------------------------
+  // ----------------------------------------------------------
   return (
-      <Card className="p-8 bg-white border border-gray-200 shadow-md rounded-2xl space-y-8">
+      <Card className="p-8 bg-white border border-gray-200 shadow-lg rounded-3xl space-y-8">
+
+        {/* HEADER: EDIT OR CREATE */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-800">
+            {saleToEdit ? `Editar Venta #${saleToEdit.id}` : "Registrar Venta"}
+          </h2>
+
+          {saleToEdit && (
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+            Modo edición
+          </span>
+          )}
+        </div>
 
         {/* BUSCADOR */}
         <div className="space-y-3">
@@ -136,35 +191,36 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
             <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Escribe para buscar..."
-                className="pl-10 py-2 border-gray-300 rounded-lg focus:ring-accent"
+                placeholder="Escribe para buscar un producto..."
+                className="pl-10 py-3 border-gray-300 rounded-xl focus:ring-accent"
             />
           </div>
 
+          {/* RESULTADOS DEL BUSCADOR TIPO CARD */}
           {search.length > 0 && (
-              <div className="mt-2 max-h-48 overflow-y-auto border rounded-lg bg-white shadow-lg animate-in fade-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                {filteredProducts.length === 0 && (
+                    <div className="text-muted-foreground text-sm">
+                      No se encontraron productos.
+                    </div>
+                )}
+
                 {filteredProducts.map((p) => (
                     <div
                         key={p.id}
                         onClick={() => addProduct(p)}
-                        className="px-4 py-2 cursor-pointer hover:bg-accent/10"
+                        className="cursor-pointer p-4 border rounded-xl hover:border-accent hover:bg-accent/5 transition shadow-sm"
                     >
-                      <p className="font-medium">{p.name}</p>
+                      <p className="font-semibold text-gray-800">{p.name}</p>
                       <p className="text-sm text-gray-500">S/ {p.price.toFixed(2)}</p>
                     </div>
                 ))}
-
-                {filteredProducts.length === 0 && (
-                    <div className="px-4 py-2 text-muted-foreground text-sm">
-                      No encontrado
-                    </div>
-                )}
               </div>
           )}
         </div>
 
-        {/* TABLA */}
-        <div className="overflow-x-auto rounded-lg border">
+        {/* TABLA DE ITEMS */}
+        <div className="rounded-xl border shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
             <tr>
@@ -181,19 +237,38 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
                 <tr key={item.product_id} className="border-t">
                   <Td>{item.name}</Td>
 
-                  <Td className="w-32 text-center">
-                    <Input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(e) =>
-                            updateQuantity(item.product_id, Number(e.target.value))
-                        }
-                        className="w-20 mx-auto text-center"
-                    />
+                  {/* CANTIDAD STEP-BY-STEP */}
+                  <Td className="w-40 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                          onClick={() => changeQty(item.product_id, -1)}
+                          className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+
+                      <Input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) =>
+                              updateQuantity(item.product_id, Number(e.target.value))
+                          }
+                          className="w-16 text-center"
+                      />
+
+                      <button
+                          onClick={() => changeQty(item.product_id, +1)}
+                          className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </Td>
 
-                  <Td className="text-right">S/ {item.unit_price.toFixed(2)}</Td>
+                  <Td className="text-right">
+                    S/ {item.unit_price.toFixed(2)}
+                  </Td>
 
                   <Td className="text-right font-semibold text-accent">
                     S/ {(item.quantity * item.unit_price).toFixed(2)}
@@ -212,10 +287,7 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
 
             {items.length === 0 && (
                 <tr>
-                  <td
-                      colSpan={5}
-                      className="py-4 text-center text-muted-foreground"
-                  >
+                  <td colSpan={5} className="py-6 text-center text-muted-foreground">
                     No hay productos añadidos
                   </td>
                 </tr>
@@ -224,61 +296,50 @@ export function SalesForm({ onSubmit, onCancel }: SalesFormProps) {
           </table>
         </div>
 
-        {/* TOTAL */}
-        <div className="flex justify-end text-xl font-bold text-gray-800">
-          Total: <span className="text-accent ml-2">S/ {totalGeneral.toFixed(2)}</span>
-        </div>
+        {/* FOOTER FIJO ESTILO POS */}
+        <div className="flex justify-between items-center bg-white py-4 border-t sticky bottom-0 z-20">
+          <div className="text-xl font-bold text-gray-800">
+            Total: <span className="text-accent">S/ {totalGeneral.toFixed(2)}</span>
+          </div>
 
-        {/* BOTONES */}
-        <div className="flex justify-end gap-3">
-          <Button
-              className="flex items-center gap-2 bg-gray-200 text-gray-700 hover:bg-gray-300"
-              onClick={onCancel}
-          >
-            <X className="w-4 h-4" /> Cancelar
-          </Button>
+          <div className="flex gap-3">
+            <Button
+                className="flex items-center gap-2 bg-gray-200 text-gray-700 hover:bg-gray-300"
+                onClick={onCancel}
+            >
+              <X className="w-4 h-4" /> Cancelar
+            </Button>
 
-          <Button
-              disabled={items.length === 0}
-              onClick={handleSubmit}
-              className={`flex items-center gap-2 text-white px-6 
-            ${
-                  items.length === 0
-                      ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-gradient-to-r from-accent to-accent-orange hover:opacity-90 shadow-md"
-              }`}
-          >
-            <Save className="w-4 h-4" />
-            Registrar Venta
-          </Button>
+            <Button
+                disabled={items.length === 0}
+                onClick={handleSubmit}
+                className={`flex items-center gap-2 text-white px-6 rounded-xl
+              ${
+                    items.length === 0
+                        ? "bg-gray-300 cursor-not-allowed"
+                        : "bg-gradient-to-r from-blue-500 to-blue-700 hover:opacity-90 shadow-md"
+                }`}
+            >
+              <Save className="w-4 h-4" />
+              {saleToEdit ? "Actualizar Venta" : "Registrar Venta"}
+            </Button>
+          </div>
         </div>
       </Card>
   );
 }
 
-// ------------------------------------------------------
-// Subcomponentes
-// ------------------------------------------------------
-const Th = ({
-              children,
-              className = "",
-            }: {
-  children: ReactNode;
-  className?: string;
-}) => (
-    <th className={`py-3 px-4 text-sm font-semibold text-gray-600 ${className}`}>
+// ----------------------------------------------------------
+// SUBCOMPONENTES
+// ----------------------------------------------------------
+const Th = ({ children, className = "" }: any) => (
+    <th
+        className={`py-3 px-4 text-sm font-bold text-gray-600 uppercase tracking-wide ${className}`}
+    >
       {children}
     </th>
 );
 
-const Td = ({
-              children,
-              className = "",
-            }: {
-  children: ReactNode;
-  className?: string;
-}) => (
-    <td className={`py-3 px-4 ${className}`}>
-      {children}
-    </td>
+const Td = ({ children, className = "" }: any) => (
+    <td className={`py-3 px-4 text-gray-800 ${className}`}>{children}</td>
 );

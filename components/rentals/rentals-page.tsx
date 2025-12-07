@@ -162,6 +162,39 @@ export function RentalsPage() {
       toast.error("No se pudo extender");
     }
   };
+  const handleCreateRental = async (data: RentalFormData) => {
+    try {
+      const start = new Date(data.start_time);
+      const end = new Date(start.getTime() + data.duration_minutes * 60000);
+
+      const startLocal = new Date(start.getTime() - start.getTimezoneOffset() * 60000)
+          .toISOString()
+          .replace("Z", "");
+
+      const endLocal = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+          .toISOString()
+          .replace("Z", "");
+
+      const res = await fetch("/api/rentals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...data,
+          start_time: startLocal,
+          end_time: endLocal
+        })
+      });
+
+      if (!res.ok) throw new Error("Create failed");
+
+      await fetchRentals();
+      closeForm();
+      toast.success("Alquiler registrado");
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo registrar el alquiler");
+    }
+  };
 
   const handleCompleteRental = async (id: number) => {
     try {
@@ -211,9 +244,14 @@ export function RentalsPage() {
               <RentalForm
                   rentalToEdit={rentalToEdit}
                   isRealEdit={isRealEdit}
-                  onSubmit={isRealEdit ? handleRealEditRental : handleUpdateRental}
+                  onSubmit={
+                    rentalToEdit
+                        ? (isRealEdit ? handleRealEditRental : handleUpdateRental)
+                        : handleCreateRental   // ⬅ REGISTRO NUEVO
+                  }
                   onCancel={closeForm}
               />
+
             </div>
         )}
 

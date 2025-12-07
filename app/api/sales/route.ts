@@ -1,118 +1,127 @@
 import { query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+
+// -------------------------------------------------------
+// GET → listar ventas con sus items
+// -------------------------------------------------------
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    let sql =
-        "SELECT s.*, p.name as product_name, p.category FROM sales s JOIN products p ON s.product_id = p.id";
-    const params: any[] = [];
+    const salesRes = await query(
+        `
+      SELECT * FROM sales
+      WHERE DATE(created_at) BETWEEN $1 AND $2
+      ORDER BY created_at DESC
+      `,
+        [startDate, endDate]
+    );
 
-    if (startDate && endDate) {
-      sql += " WHERE DATE(s.created_at) BETWEEN $1 AND $2";
-      params.push(startDate, endDate);
+    const sales = salesRes.rows;
+
+    for (const sale of sales) {
+      const itemsRes = await query(
+          `
+        SELECT si.*, p.name AS product_name, p.category
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = $1
+        `,
+          [sale.id]
+      );
+
+      sale.items = itemsRes.rows;
     }
 
-    sql += " ORDER BY s.created_at DESC LIMIT 1000";
+    return NextResponse.json(sales);
 
-    const result = await query(sql, params);
-    return NextResponse.json(
-        result.rows.map((r: any) => ({
-          ...r,
-          total_price: Number(r.total_price),
-          unit_price: Number(r.unit_price),
-          quantity: Number(r.quantity),
-        }))
-    );
   } catch (error) {
-    console.error("[v0] GET sales error:", error);
+    console.error("[GET sales error]:", error);
     return NextResponse.json(
-        { error: "Failed to fetch sales", details: String(error) },
+        { error: "Error al obtener ventas" },
         { status: 500 }
     );
   }
 }
 
+// -------------------------------------------------------
+// POST → registrar nueva venta completa
+// -------------------------------------------------------
 export async function POST(request: Request) {
   try {
     const items = await request.json();
-    console.log("RECIBIDO EN API:", items);
 
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
-          { error: "Debe enviar al menos un producto" },
+          { error: "Debe enviar al menos un item" },
           { status: 400 }
       );
     }
 
-    const results: any[] = [];
+    // Crear la venta principal
+    const saleRes = await query(
+        `INSERT INTO sales (total) VALUES (0) RETURNING id`
+    );
+
+    const saleId = saleRes.rows[0].id;
+    let totalVenta = 0;
 
     for (const item of items) {
-      const { product_id, quantity, unit_price, notes } = item;
-
-      const qty = Number(quantity);
-      const price = Number(unit_price);
-      const totalPrice = qty * price;
-
-      if (!product_id || qty <= 0 || price <= 0) {
-        return NextResponse.json(
-            { error: "Formato de venta inválido" },
-            { status: 400 }
-        );
-      }
+      const qty = Number(item.quantity);
+      const price = Number(item.unit_price);
+      const subtotal = qty * price;
 
       // Verificar stock
       const stockRes = await query(
           `SELECT quantity FROM products WHERE id = $1`,
-          [product_id]
+          [item.product_id]
       );
 
       if (stockRes.rows.length === 0) {
-        return NextResponse.json(
-            { error: `Producto ${product_id} no encontrado` },
-            { status: 404 }
-        );
+        throw new Error(`Producto ${item.product_id} no existe`);
       }
 
-      const currentStock = Number(stockRes.rows[0].quantity);
-
-      if (currentStock < qty) {
-        return NextResponse.json(
-            {
-              error: `Stock insuficiente para producto ${product_id}. Disponible: ${currentStock}`,
-            },
-            { status: 400 }
-        );
+      if (Number(stockRes.rows[0].quantity) < qty) {
+        throw new Error(`Stock insuficiente para producto ${item.product_id}`);
       }
 
-      // Registrar venta
-      const insertRes = await query(
-          `INSERT INTO sales (product_id, quantity, unit_price, total_price, notes)
-           VALUES ($1, $2, $3, $4, $5)
-             RETURNING *`,
-          [product_id, qty, price, totalPrice, notes || null]
+      // Registrar item
+      await query(
+          `
+        INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
+        VALUES ($1, $2, $3, $4, $5)
+        `,
+          [saleId, item.product_id, qty, price, subtotal]
       );
 
-      // Reducir stock
+      // Actualizar stock
       await query(
           `UPDATE products SET quantity = quantity - $1 WHERE id = $2`,
-          [qty, product_id]
+          [qty, item.product_id]
       );
 
-      results.push(insertRes.rows[0]);
+      totalVenta += subtotal;
     }
 
-    return NextResponse.json(
-        { message: "Ventas registradas", items: results },
-        { status: 201 }
+    // Actualizar total final
+    await query(
+        `UPDATE sales SET total = $1 WHERE id = $2`,
+        [totalVenta, saleId]
     );
-  } catch (error) {
-    console.error("[v0] POST sale error:", error);
+
+    return NextResponse.json({
+      message: "Venta registrada correctamente",
+      sale_id: saleId,
+      total: totalVenta,
+    });
+
+  } catch (error: any) {
+    console.error("POST /api/sales error:", error);
     return NextResponse.json(
-        { error: "Failed to create sale", details: String(error) },
+        { error: "Error registrando venta", details: error.message },
         { status: 500 }
     );
   }

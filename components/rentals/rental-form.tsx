@@ -7,14 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Save, X } from "lucide-react"
 import type { RentalFormData } from "@/components/types/rentalFormData"
 
-/*interface RentalFormData {
-  num_children: number
-  start_time: string
-  duration_minutes: number
-  total_price: number
-  client_name: string
-  client_dni: string
-}*/
 
 interface RentalFormProps {
   onSubmit: (rental: RentalFormData, rentalId?: number) => Promise<void>
@@ -54,14 +46,19 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
     }
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    onSubmit(
-        { ...formData },
-        rentalToEdit?.id
-    )
-  }
+    console.log("ENVIANDO FORMULARIO..."); // 🔥
+
+    try {
+      await onSubmit({ ...formData }, rentalToEdit?.id);
+      console.log("SUBMIT OK"); // 🔥
+    } catch (err) {
+      console.error("ERROR EN SUBMIT:", err); // 🔥
+    }
+  };
+
 
   return (
       <Card className="p-8 bg-white border border-gray-200 shadow-sm rounded-2xl">
@@ -191,10 +188,14 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
               <X className="w-4 h-4" /> Cancelar
             </Button>
 
-            <Button className="bg-primary text-white px-6 hover:bg-primary/90 flex items-center gap-2">
+            <Button
+                type="submit"
+                className="bg-primary text-white px-6 hover:bg-primary/90 flex items-center gap-2"
+            >
               <Save className="w-4 h-4" />
               {rentalToEdit ? "Guardar Cambios" : "Registrar"}
             </Button>
+
           </div>
         </form>
       </Card>

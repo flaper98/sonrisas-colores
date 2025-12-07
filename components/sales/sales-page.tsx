@@ -4,21 +4,25 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { SalesForm } from "./sales-form";
 import { SalesList } from "./sales-list";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, ShoppingBag, Receipt } from "lucide-react";
+import { Plus, Calendar, ShoppingBag, Receipt, CheckCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useModal } from "@/app/hooks/useModal";
 import { Modal } from "@/components/ui/Modal";
 
-export interface Sale {
-  id: number;
+export interface SaleItem {
   product_id: number;
   product_name: string;
   category: string;
   quantity: number;
   unit_price: number;
-  total_price: number;
-  notes?: string;
+  subtotal: number;
+}
+
+export interface Sale {
+  id: number;
+  total: number;
   created_at?: string;
+  items: SaleItem[];
 }
 
 export function SalesPage() {
@@ -29,8 +33,13 @@ export function SalesPage() {
       new Date().toISOString().split("T")[0]
   );
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<number | null>(null);
 
-  const successModal = useModal();
+  // Modales
+  const successCreateModal = useModal();
+  const successUpdateModal = useModal();
+  const successDeleteModal = useModal();
+  const confirmDeleteModal = useModal();
 
   // -------------------------
   // CARGAR VENTAS
@@ -38,13 +47,10 @@ export function SalesPage() {
   const fetchSales = useCallback(async () => {
     try {
       setLoading(true);
-
       const res = await fetch(
           `/api/sales?startDate=${selectedDate}&endDate=${selectedDate}`
       );
-
       if (!res.ok) throw new Error("Error fetching sales");
-
       setSales(await res.json());
     } catch (error) {
       console.error(error);
@@ -70,53 +76,72 @@ export function SalesPage() {
             body: JSON.stringify(items),
           });
 
-          if (!res.ok) throw new Error();
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.details || errorData.error);
+          }
 
-          successModal.open();
+          successCreateModal.open();
           setShowForm(false);
           fetchSales();
-        } catch (e) {
-          toast.error("Error al registrar venta");
+        } catch (e: any) {
+          console.error("Error registrando venta:", e);
+          toast.error(e.message || "Error al registrar venta");
         }
       },
-      [fetchSales, successModal]
+      [fetchSales, successCreateModal]
   );
 
   // -------------------------
   // EDITAR VENTA
   // -------------------------
-  const handleEditSale = async (id: number, data: any) => {
+  const handleEditSale = async (id: number, items: any[]) => {
     try {
       const res = await fetch(`/api/sales/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(items),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.details || errorData.error);
+      }
 
-      toast.success("Venta actualizada");
+      successUpdateModal.open();
       setEditingSale(null);
+      setShowForm(false);
       fetchSales();
-    } catch {
-      toast.error("No se pudo actualizar la venta");
+    } catch (error: any) {
+      console.error("❌ Error en handleEditSale:", error);
+      toast.error(error.message || "No se pudo actualizar la venta");
     }
+  };
+
+  // -------------------------
+  // CONFIRMAR ELIMINAR
+  // -------------------------
+  const handleDeleteClick = (id: number) => {
+    setSaleToDelete(id);
+    confirmDeleteModal.open();
   };
 
   // -------------------------
   // ELIMINAR VENTA
   // -------------------------
-  const handleDeleteSale = async (id: number) => {
-    if (!confirm("¿Eliminar esta venta?")) return;
+  const handleDeleteConfirm = async () => {
+    if (!saleToDelete) return;
 
     try {
-      const res = await fetch(`/api/sales/${id}`, {
+      const res = await fetch(`/api/sales/${saleToDelete}`, {
         method: "DELETE",
       });
 
       if (!res.ok) throw new Error();
 
-      toast.success("Venta eliminada");
+      confirmDeleteModal.close();
+      successDeleteModal.open();
+      setSaleToDelete(null);
       fetchSales();
     } catch {
       toast.error("No se pudo eliminar la venta");
@@ -127,12 +152,13 @@ export function SalesPage() {
   // MEMOS
   // -------------------------
   const totalSales = useMemo(
-      () => sales.reduce((sum, s) => sum + Number(s.total_price), 0),
+      () => sales.reduce((sum, s) => sum + Number(s.total), 0),
       [sales]
   );
 
   const totalItems = useMemo(
-      () => sales.reduce((sum, s) => sum + s.quantity, 0),
+      () =>
+          sales.reduce((sum, s) => sum + s.items.reduce((a, i) => a + i.quantity, 0), 0),
       [sales]
   );
 
@@ -141,7 +167,6 @@ export function SalesPage() {
   // -------------------------
   return (
       <div className="space-y-10">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -152,9 +177,11 @@ export function SalesPage() {
               Registra ventas de golosinas, libros y otros productos
             </p>
           </div>
-
           <Button
-              onClick={() => setShowForm((v) => !v)}
+              onClick={() => {
+                setShowForm((v) => !v);
+                if (showForm) setEditingSale(null);
+              }}
               className="bg-gradient-to-r from-accent to-accent-orange text-white shadow-md hover:shadow-lg gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
@@ -173,11 +200,12 @@ export function SalesPage() {
                 className="bg-transparent outline-none"
             />
           </div>
-
           <Button
               variant="outline"
               className="border-accent text-accent hover:bg-accent hover:text-white"
-              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+              onClick={() =>
+                  setSelectedDate(new Date().toISOString().split("T")[0])
+              }
           >
             Hoy
           </Button>
@@ -185,7 +213,6 @@ export function SalesPage() {
 
         {/* CARDS ESTADÍSTICOS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
           <div className="bg-yellow-100 border border-yellow-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm text-yellow-700">Total Ventas</p>
@@ -195,7 +222,6 @@ export function SalesPage() {
             </div>
             <Receipt className="w-14 h-14 text-yellow-400 opacity-80" />
           </div>
-
           <div className="bg-blue-100 border border-blue-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm text-blue-700">Artículos Vendidos</p>
@@ -205,15 +231,15 @@ export function SalesPage() {
             </div>
             <ShoppingBag className="w-14 h-14 text-blue-400 opacity-80" />
           </div>
-
         </div>
 
         {/* FORMULARIO */}
         {showForm && (
             <SalesForm
+                saleToEdit={editingSale}
                 onSubmit={
                   editingSale
-                      ? (data) => handleEditSale(editingSale.id, data)
+                      ? (items) => handleEditSale(editingSale.id, items)
                       : handleAddSale
                 }
                 onCancel={() => {
@@ -236,30 +262,116 @@ export function SalesPage() {
                   setEditingSale(sale);
                   setShowForm(true);
                 }}
-                onDelete={handleDeleteSale}
+                onDelete={handleDeleteClick}
             />
         )}
 
-        {/* MODAL ÉXITO */}
+        {/* ========================================= */}
+        {/* MODAL: VENTA CREADA */}
+        {/* ========================================= */}
         <Modal
-            show={successModal.show}
-            onClose={successModal.close}
-            title="Venta registrada"
+            show={successCreateModal.show}
+            onClose={successCreateModal.close}
+            title="¡Venta Registrada!"
         >
-          <div className="text-green-600 text-6xl animate-bounce">🎉</div>
-
-          <p className="text-lg font-medium">
-            ¡La venta se registró correctamente!
-          </p>
-
-          <button
-              onClick={successModal.close}
-              className="px-6 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            Aceptar
-          </button>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-12 h-12 text-green-600" />
+            </div>
+            <p className="text-lg font-medium text-gray-800 text-center">
+              La venta se registró correctamente
+            </p>
+            <button
+                onClick={successCreateModal.close}
+                className="mt-2 px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-md transition"
+            >
+              Aceptar
+            </button>
+          </div>
         </Modal>
 
+        {/* ========================================= */}
+        {/* MODAL: VENTA ACTUALIZADA */}
+        {/* ========================================= */}
+        <Modal
+            show={successUpdateModal.show}
+            onClose={successUpdateModal.close}
+            title="¡Venta Actualizada!"
+        >
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-12 h-12 text-blue-600" />
+            </div>
+            <p className="text-lg font-medium text-gray-800 text-center">
+              Los cambios se guardaron correctamente
+            </p>
+            <button
+                onClick={successUpdateModal.close}
+                className="mt-2 px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-md transition"
+            >
+              Aceptar
+            </button>
+          </div>
+        </Modal>
+
+        {/* ========================================= */}
+        {/* MODAL: CONFIRMAR ELIMINACIÓN */}
+        {/* ========================================= */}
+        <Modal
+            show={confirmDeleteModal.show}
+            onClose={() => {
+              confirmDeleteModal.close();
+              setSaleToDelete(null);
+            }}
+            title="¿Eliminar esta venta?"
+        >
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+              <Trash2 className="w-12 h-12 text-red-600" />
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                  onClick={() => {
+                    confirmDeleteModal.close();
+                    setSaleToDelete(null);
+                  }}
+                  className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-semibold transition"
+              >
+                Cancelar
+              </button>
+              <button
+                  onClick={handleDeleteConfirm}
+                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-md transition"
+              >
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* ========================================= */}
+        {/* MODAL: VENTA ELIMINADA */}
+        {/* ========================================= */}
+        <Modal
+            show={successDeleteModal.show}
+            onClose={successDeleteModal.close}
+            title="¡Venta Eliminada!"
+        >
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-12 h-12 text-green-600" />
+            </div>
+            <p className="text-lg font-medium text-gray-800 text-center">
+              La venta se eliminó y el stock fue restaurado
+            </p>
+            <button
+                onClick={successDeleteModal.close}
+                className="mt-2 px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-md transition"
+            >
+              Aceptar
+            </button>
+          </div>
+        </Modal>
       </div>
   );
 }

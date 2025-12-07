@@ -108,6 +108,7 @@
           ".next/**/*",
           "public/**/*",
           "node_modules/**/*",
+          ".env.local",
           "!node_modules/.cache"
         ]
       }
@@ -115,7 +116,7 @@
     "asar": false,
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico"
+      "icon": "public/logo.png"
     },
     "nsis": {
       "oneClick": true,
