@@ -1,279 +1,586 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
-
-import { Calendar, DollarSign, TrendingUp, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
-
-
-interface ReportData {
-  date: string
-  total_income: number
-  rentals: number
-  average_price: number
-  children_served: number
-
-  // Nuevos campos para la tabla por rango
-  client_name?: string
-  client_dni?: string
-
-  status?: string
-  total?: number
-  num_children?: number
-}
+import { Download, FileText, Table, Calendar, TrendingUp } from "lucide-react"
 
 export function ReportsPage() {
-  const [period, setPeriod] = useState<"daily" | "weekly">("daily")
-  const [reportData, setReportData] = useState<ReportData[]>([])
-  const [loading, setLoading] = useState(true)
-  const today = new Date().toISOString().split("T")[0]
-
-  // Rango de fechas
-  const [startDate, setStartDate] = useState(today)
-  const [endDate, setEndDate] = useState(today)
-  const [hasSearched, setHasSearched] = useState(false)
-
-  // -------------------
-  // FETCH REPORTES BASE
-  // -------------------
-  useEffect(() => {
-    fetchReports()
-  }, [period])
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/rentals/reports?period=${period}&days=30`)
-      if (!response.ok) throw new Error("Failed to fetch reports")
-      const data = await response.json()
-      setReportData(data)
-    } catch (error) {
-      console.error("Error fetching reports:", error)
-      toast.error("Error al cargar reportes")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // -------------------
-  // FETCH POR RANGO
-  // -------------------
-  const fetchRentalsByDateRange = async () => {
-    if (!startDate || !endDate) {
-      return toast.error("Seleccione ambas fechas")
-    }
-
-    try {
-      setLoading(true)
-      setHasSearched(true)
-      const response = await fetch(`/api/rentals/report-range?start=${startDate}&end=${endDate}`)
-      if (!response.ok) throw new Error("Error en servidor")
-
-      const data = await response.json()
-      setReportData(data)
-
-      toast.success("Reporte por fechas cargado")
-    } catch (error) {
-      console.error(error)
-      toast.error("Error cargando datos por rango")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-
-  // Formato seguro sin timezone
-  function formatDateNoTimezone(dateString: string) {
-    if (!dateString) return "-";
-    const [year, month, day] = dateString.split("-");
-    return `${day}/${month}/${year}`;
-  }
-
-
-  // -------------------
-  // EXPORTAR PDF
-  // -------------------
-  const handleExportPDF = () => {
-    const doc = new jsPDF()
-
-    // Construir título dinámico según rango
-    const start = formatDateNoTimezone(startDate);
-    const end = formatDateNoTimezone(endDate);
-
-    const title = `REPORTE DE ALQUILERES\nDesde ${start}  Hasta ${end}`;
-
-    // Título centrado
-    doc.setFontSize(14);
-    doc.text(title, 105, 15, { align: "center" });
-
-    const tableData = reportData.map((item) => [
-      new Date(item.date).toLocaleDateString("es-PE"),
-      item.client_name || "-",
-      item.client_dni || "-",
-      item.num_children||"-",
-      item.status || "-",
-      item.total ? `S/ ${item.total}` : "-",
-    ])
-
-    autoTable(doc, {
-      startY: 30,
-      head: [["FECHA", "CLIENTE", "DNI", "CANTIDAD" , "ESTADO", "TOTAL"]],
-      body: tableData,
-    })
-
-    doc.save(`alquileres-${Date.now()}.pdf`)
-    toast.success("PDF generado")
-  }
-
-
-  // -------------------
-  // EXPORTAR CSV
-  // -------------------
-  const handleExportCSV = () => {
-    const csv = [
-      ["FECHA", "CLIENTE", "DNI", "CANTIDAD" , "ESTADO", "TOTAL"],
-      ...reportData.map((item) => [
-        item.date,
-        item.client_name || "",
-        item.client_dni || "-",
-        item.num_children || "",
-        item.status || "",
-        item.total || "",
-      ]),
-    ]
-        .map((row) => row.join(","))
-        .join("\n")
-
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `reporte-alquileres.csv`
-    a.click()
-
-    toast.success("CSV descargado")
-  }
+  const [activeTab, setActiveTab] = useState<"rentals" | "products">("rentals")
 
   return (
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-foreground">REPORTES DE ALQUILERES</h2>
-            <p className="text-muted-foreground mt-1">Análisis detallado por fechas</p>
-          </div>
-
-          {/* Export buttons */}
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button
-                onClick={handleExportPDF}
-                variant="outline"
-                size="sm"
-                className="gap-2 border-primary text-primary hover:bg-primary hover:text-white"
-            >
-              <Download className="w-4 h-4" />
-              PDF
-            </Button>
-
-            <Button
-                onClick={handleExportCSV}
-                variant="outline"
-                size="sm"
-                className="gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white"
-            >
-              <Download className="w-4 h-4" />
-              CSV
-            </Button>
+            <h2 className="text-3xl font-bold text-foreground">REPORTES DEL SISTEMA</h2>
+            <p className="text-muted-foreground mt-1">Análisis detallado de alquileres y ventas de productos</p>
           </div>
         </div>
 
+        {/* Tabs Navigation */}
+        <Card className="p-1 bg-white border border-border shadow-sm">
+          <div className="flex gap-1">
+            <Button
+                onClick={() => setActiveTab("rentals")}
+                variant={activeTab === "rentals" ? "default" : "ghost"}
+                className={`flex-1 gap-2 transition-all ${
+                    activeTab === "rentals"
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-gray-50"
+                }`}
+            >
+              <FileText className="w-4 h-4" />
+              ALQUILERES
+            </Button>
+            <Button
+                onClick={() => setActiveTab("products")}
+                variant={activeTab === "products" ? "default" : "ghost"}
+                className={`flex-1 gap-2 transition-all ${
+                    activeTab === "products"
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-gray-50"
+                }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              VENTAS
+            </Button>
+          </div>
+        </Card>
+
+        {/* Content */}
+        <div className="animate-in fade-in duration-300">
+          {activeTab === "rentals" ? <RentalReports /> : <ProductReports />}
+        </div>
+      </div>
+  )
+}
+
+// RentalReports Component
+function RentalReports() {
+  const [reportData, setReportData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const today = new Date().toISOString().split("T")[0]
+  const [startDate, setStartDate] = useState(today)
+  const [endDate, setEndDate] = useState(today)
+  const [hasSearched, setHasSearched] = useState(false)
+
+  const formatDateNoTimezone = (dateString: string) => {
+    if (!dateString) return "-"
+    const [year, month, day] = dateString.split("-")
+    return `${day}/${month}/${year}`
+  }
+
+  const fetchRentalsByDateRange = async () => {
+    if (!startDate || !endDate) {
+      toast.error("Por favor seleccione ambas fechas")
+      return
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      toast.error("La fecha inicial no puede ser mayor a la fecha final")
+      return
+    }
+
+    try {
+      setLoading(true)
+      setHasSearched(true)
+      const response = await fetch(`/api/rentals/report-range?start=${startDate}&end=${endDate}`)
+
+      if (!response.ok) {
+        throw new Error("Error al obtener los datos")
+      }
+
+      const data = await response.json()
+      setReportData(data)
+
+      if (data.length === 0) {
+        toast.info("No se encontraron alquileres en el rango seleccionado")
+      } else {
+        toast.success(`${data.length} registro${data.length !== 1 ? 's' : ''} cargado${data.length !== 1 ? 's' : ''} exitosamente`)
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error("Error al cargar los datos. Por favor, intente nuevamente")
+      setReportData([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    try {
+      toast.loading("Generando PDF...")
+
+      const jsPDF = (await import("jspdf")).default
+      const autoTable = (await import("jspdf-autotable")).default
+
+      const doc = new jsPDF()
+      const start = formatDateNoTimezone(startDate)
+      const end = formatDateNoTimezone(endDate)
+      const title = `REPORTE DE ALQUILERES\nDesde ${start}  Hasta ${end}`
+
+      doc.setFontSize(14)
+      doc.text(title, 105, 15, { align: "center" })
+
+      const tableData = reportData.map((item) => [
+        new Date(item.date).toLocaleDateString("es-PE"),
+        item.client_name || "-",
+        item.client_dni || "-",
+        item.num_children || "-",
+        item.status || "-",
+        item.total ? `S/ ${item.total}` : "-",
+      ])
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["FECHA", "CLIENTE", "DNI", "CANTIDAD", "ESTADO", "TOTAL"]],
+        body: tableData,
+      })
+
+      doc.save(`alquileres-${Date.now()}.pdf`)
+      toast.dismiss()
+      toast.success("PDF generado exitosamente")
+    } catch (error) {
+      toast.dismiss()
+      toast.error("Error al generar el PDF")
+    }
+  }
+
+  const handleExportCSV = () => {
+    try {
+      // Usar punto y coma como delimitador para Excel
+      const headers = "FECHA;CLIENTE;DNI;CANTIDAD;ESTADO;TOTAL\n"
+
+      // Crear filas de datos
+      const rows = reportData.map((item) => {
+        const fecha = item.date ? new Date(item.date).toLocaleDateString("es-PE") : "-"
+        const cliente = (item.client_name || "-").toString()
+        const dni = (item.client_dni || "-").toString()
+        const cantidad = (item.num_children || "-").toString()
+        const estado = (item.status || "-").toString()
+        const total = (item.total || "-").toString()
+
+        return `${fecha};${cliente};${dni};${cantidad};${estado};${total}`
+      }).join("\n")
+
+      const csv = headers + rows
+
+      // BOM para UTF-8 y configuración para Excel
+      const blob = new Blob(["\ufeff" + csv], {
+        type: "text/csv;charset=utf-8;"
+      })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `reporte-alquileres-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast.success("CSV descargado exitosamente")
+    } catch (error) {
+      toast.error("Error al generar el CSV")
+    }
+  }
+
+  return (
+      <div className="space-y-6">
         {/* FILTRO DE RANGO */}
-        <Card className="p-4 bg-white border border-border">
-          <h3 className="text-lg font-bold mb-3">FILTRAR ALQUILERES POR RANGO</h3>
+        <Card className="p-6 bg-white border border-border shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-bold">FILTRAR ALQUILERES POR RANGO</h3>
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex flex-col">
-              <label className="text-sm font-medium mb-1">Desde</label>
+            <div className="flex flex-col flex-1">
+              <label className="text-sm font-medium mb-2 text-muted-foreground">Fecha Inicial</label>
               <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="p-2 border rounded-md"
+                  className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
               />
             </div>
 
-            <div className="flex flex-col">
-              <label className="text-sm font-medium mb-1">Hasta</label>
+            <div className="flex flex-col flex-1">
+              <label className="text-sm font-medium mb-2 text-muted-foreground">Fecha Final</label>
               <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="p-2 border rounded-md"
+                  className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
               />
             </div>
 
             <Button
                 onClick={fetchRentalsByDateRange}
-                className="self-end mt-2 sm:mt-0 bg-primary text-white"
+                className="self-end bg-primary text-white hover:bg-primary/90 transition-all shadow-sm"
+                disabled={loading}
             >
-              Buscar
+              {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Cargando...
+                  </>
+              ) : (
+                  "Buscar"
+              )}
             </Button>
           </div>
         </Card>
 
-        {/* KPIs */}
-        {loading ? (
-            <div className="text-center py-12 text-muted-foreground">Cargando reportes...</div>
-        ) : (
-            <>
+        {/* Export buttons */}
+        {hasSearched && reportData.length > 0 && (
+            <div className="flex gap-2 justify-end animate-in fade-in slide-in-from-top-2 duration-300">
+              <Button
+                  onClick={handleExportPDF}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Exportar PDF
+              </Button>
 
-              {/* TABLA DETALLE RANGO */}
-              {hasSearched && (
-
-                  <Card className="p-6 bg-white border border-border">
-                <h3 className="text-lg font-bold mb-4">Detalle de Alquileres por Rango</h3>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="border-b border-border">
-                    <tr>
-                      <th className="py-3 px-4 text-left font-bold">FECHA</th>
-                      <th className="py-3 px-4 text-left font-bold">CLIENTE</th>
-                      <th className="py-3 px-4 text-left font-bold">DNI</th>
-                      <th className="py-3 px-4 text-left font-bold">CANTIDAD</th>
-                      <th className="py-3 px-4 text-left font-bold">ESTADO</th>
-                      <th className="py-3 px-4 text-left font-bold">TOTAL</th>
-                    </tr>
-                    </thead>
-
-                    <tbody>
-                    {reportData.map((row, idx) => (
-                        <tr key={idx} className="border-b border-border hover:bg-gray-100">
-                          <td className="py-3 px-4">{new Date(row.date).toLocaleDateString("es-PE")}</td>
-                          <td className="py-3 px-4">{row.client_name || "-"}</td>
-                          <td className="py-3 px-4">{row.client_dni || "-"}</td>
-                          <td className="py-3 px-4">{row.num_children || "-"}</td>
-                          <td className="py-3 px-4">{row.status || "-"}</td>
-                          <td className="py-3 px-4 font-bold text-primary">
-                            {row.total ? `S/ ${row.total}` : "-"}
-                          </td>
-                        </tr>
-                    ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-                  )}
-            </>
+              <Button
+                  onClick={handleExportCSV}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm"
+              >
+                <Table className="w-4 h-4" />
+                Exportar CSV
+              </Button>
+            </div>
         )}
+
+        {/* TABLA */}
+        {loading ? (
+            <Card className="p-12 bg-white border border-border shadow-sm">
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-muted-foreground">Cargando reportes...</p>
+              </div>
+            </Card>
+        ) : hasSearched && reportData.length > 0 ? (
+            <Card className="p-6 bg-white border border-border shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Detalle de Alquileres</h3>
+                <span className="text-sm text-muted-foreground bg-gray-100 px-3 py-1 rounded-full">
+              {reportData.length} registro{reportData.length !== 1 ? 's' : ''}
+            </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b-2 border-border">
+                  <tr>
+                    <th className="py-3 px-4 text-left font-bold text-gray-700">FECHA</th>
+                    <th className="py-3 px-4 text-left font-bold text-gray-700">CLIENTE</th>
+                    <th className="py-3 px-4 text-left font-bold text-gray-700">DNI</th>
+                    <th className="py-3 px-4 text-center font-bold text-gray-700">CANTIDAD</th>
+                    <th className="py-3 px-4 text-center font-bold text-gray-700">ESTADO</th>
+                    <th className="py-3 px-4 text-right font-bold text-gray-700">TOTAL</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {reportData.map((row, idx) => (
+                      <tr
+                          key={idx}
+                          className="border-b border-border hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="py-3 px-4 whitespace-nowrap">{new Date(row.date).toLocaleDateString("es-PE")}</td>
+                        <td className="py-3 px-4">{row.client_name || "-"}</td>
+                        <td className="py-3 px-4">{row.client_dni || "-"}</td>
+                        <td className="py-3 px-4 text-center">{row.num_children || "-"}</td>
+                        <td className="py-3 px-4 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          row.status === "completed" || row.status === "Completado"
+                              ? "bg-green-100 text-green-700"
+                              : row.status === "pending" || row.status === "Pendiente"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
+                      }`}>
+                        {row.status || "-"}
+                      </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-primary">
+                          {row.total ? `S/ ${Number(row.total).toFixed(2)}` : "-"}
+                        </td>
+                      </tr>
+                  ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+        ) : hasSearched ? (
+            <Card className="p-12 bg-white border border-border shadow-sm text-center">
+              <div className="flex flex-col items-center gap-3">
+                <FileText className="w-12 h-12 text-gray-300" />
+                <p className="text-muted-foreground">No se encontraron alquileres en el rango seleccionado</p>
+              </div>
+            </Card>
+        ) : null}
       </div>
   )
 }
 
+// ProductReports Component
+function ProductReports() {
+  const [reportData, setReportData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const today = new Date().toISOString().split("T")[0]
+  const [startDate, setStartDate] = useState(today)
+  const [endDate, setEndDate] = useState(today)
+  const [hasSearched, setHasSearched] = useState(false)
 
+  const formatDateNoTimezone = (dateString: string) => {
+    if (!dateString) return "-"
+    const [year, month, day] = dateString.split("-")
+    return `${day}/${month}/${year}`
+  }
 
+  const fetchProductsByDateRange = async () => {
+    if (!startDate || !endDate) {
+      toast.error("Por favor seleccione ambas fechas")
+      return
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      toast.error("La fecha inicial no puede ser mayor a la fecha final")
+      return
+    }
+
+    try {
+      setLoading(true)
+      setHasSearched(true)
+      const response = await fetch(`/api/sales/report-range?start=${startDate}&end=${endDate}`)
+
+      if (!response.ok) {
+        throw new Error("Error al obtener los datos")
+      }
+
+      const data = await response.json()
+      setReportData(data)
+
+      if (data.length === 0) {
+        toast.info("No se encontraron ventas en el rango seleccionado")
+      } else {
+        toast.success(`${data.length} registro${data.length !== 1 ? 's' : ''} cargado${data.length !== 1 ? 's' : ''} exitosamente`)
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error("Error al cargar los datos. Por favor, intente nuevamente")
+      setReportData([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportPDF = async () => {
+    try {
+      toast.loading("Generando PDF...")
+
+      const jsPDF = (await import("jspdf")).default
+      const autoTable = (await import("jspdf-autotable")).default
+
+      const doc = new jsPDF()
+      const start = formatDateNoTimezone(startDate)
+      const end = formatDateNoTimezone(endDate)
+      const title = `REPORTE DE VENTAS\nDesde ${start}  Hasta ${end}`
+
+      doc.setFontSize(14)
+      doc.text(title, 105, 15, { align: "center" })
+
+      const tableData = reportData.map((item) => [
+        new Date(item.date).toLocaleDateString("es-PE"),
+        item.product_name || "-",
+        item.quantity || "-",
+        item.unit_price ? `S/ ${item.unit_price}` : "-",
+        item.total ? `S/ ${item.total}` : "-",
+      ])
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["FECHA", "PRODUCTO", "CANTIDAD", "PRECIO UNIT.", "TOTAL"]],
+        body: tableData,
+      })
+
+      doc.save(`ventas-${Date.now()}.pdf`)
+      toast.dismiss()
+      toast.success("PDF generado exitosamente")
+    } catch (error) {
+      toast.dismiss()
+      toast.error("Error al generar el PDF")
+    }
+  }
+
+  const handleExportCSV = () => {
+    try {
+      // Usar punto y coma como delimitador para Excel
+      const headers = "FECHA;PRODUCTO;CANTIDAD;PRECIO UNITARIO;TOTAL\n"
+
+      // Crear filas de datos
+      const rows = reportData.map((item) => {
+        const fecha = item.date ? new Date(item.date).toLocaleDateString("es-PE") : "-"
+        const producto = (item.product_name || "-").toString()
+        const cantidad = (item.quantity || "-").toString()
+        const precioUnit = (item.unit_price || "-").toString()
+        const total = (item.total || "-").toString()
+
+        return `${fecha};${producto};${cantidad};${precioUnit};${total}`
+      }).join("\n")
+
+      const csv = headers + rows
+
+      // BOM para UTF-8 y configuración para Excel
+      const blob = new Blob(["\ufeff" + csv], {
+        type: "text/csv;charset=utf-8;"
+      })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `reporte-ventas-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast.success("CSV descargado exitosamente")
+    } catch (error) {
+      toast.error("Error al generar el CSV")
+    }
+  }
+
+  return (
+      <div className="space-y-6">
+        {/* FILTRO DE RANGO */}
+        <Card className="p-6 bg-white border border-border shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-bold">FILTRAR VENTAS POR RANGO</h3>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col flex-1">
+              <label className="text-sm font-medium mb-2 text-muted-foreground">Fecha Inicial</label>
+              <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              />
+            </div>
+
+            <div className="flex flex-col flex-1">
+              <label className="text-sm font-medium mb-2 text-muted-foreground">Fecha Final</label>
+              <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              />
+            </div>
+
+            <Button
+                onClick={fetchProductsByDateRange}
+                className="self-end bg-primary text-white hover:bg-primary/90 transition-all shadow-sm"
+                disabled={loading}
+            >
+              {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Cargando...
+                  </>
+              ) : (
+                  "Buscar"
+              )}
+            </Button>
+          </div>
+        </Card>
+
+        {/* Export buttons */}
+        {hasSearched && reportData.length > 0 && (
+            <div className="flex gap-2 justify-end animate-in fade-in slide-in-from-top-2 duration-300">
+              <Button
+                  onClick={handleExportPDF}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Exportar PDF
+              </Button>
+
+              <Button
+                  onClick={handleExportCSV}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm"
+              >
+                <Table className="w-4 h-4" />
+                Exportar CSV
+              </Button>
+            </div>
+        )}
+
+        {/* TABLA */}
+        {loading ? (
+            <Card className="p-12 bg-white border border-border shadow-sm">
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-muted-foreground">Cargando reportes...</p>
+              </div>
+            </Card>
+        ) : hasSearched && reportData.length > 0 ? (
+            <Card className="p-6 bg-white border border-border shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Detalle de Ventas</h3>
+                <span className="text-sm text-muted-foreground bg-gray-100 px-3 py-1 rounded-full">
+              {reportData.length} registro{reportData.length !== 1 ? 's' : ''}
+            </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b-2 border-border">
+                  <tr>
+                    <th className="py-3 px-4 text-left font-bold text-gray-700">FECHA</th>
+                    <th className="py-3 px-4 text-left font-bold text-gray-700">PRODUCTO</th>
+                    <th className="py-3 px-4 text-center font-bold text-gray-700">CANTIDAD</th>
+                    <th className="py-3 px-4 text-right font-bold text-gray-700">PRECIO UNIT.</th>
+                    <th className="py-3 px-4 text-right font-bold text-gray-700">TOTAL</th>
+                  </tr>
+                  </thead>
+
+                  <tbody>
+                  {reportData.map((row, idx) => (
+                      <tr
+                          key={idx}
+                          className="border-b border-border hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="py-3 px-4 whitespace-nowrap">{new Date(row.date).toLocaleDateString("es-PE")}</td>
+                        <td className="py-3 px-4">{row.product_name || "-"}</td>
+                        <td className="py-3 px-4 text-center">{row.quantity || "-"}</td>
+                        <td className="py-3 px-4 text-right">{row.unit_price ? `S/ ${Number(row.unit_price).toFixed(2)}` : "-"}</td>
+                        <td className="py-3 px-4 text-right font-bold text-primary">
+                          {row.total ? `S/ ${Number(row.total).toFixed(2)}` : "-"}
+                        </td>
+                      </tr>
+                  ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+        ) : hasSearched ? (
+            <Card className="p-12 bg-white border border-border shadow-sm text-center">
+              <div className="flex flex-col items-center gap-3">
+                <TrendingUp className="w-12 h-12 text-gray-300" />
+                <p className="text-muted-foreground">No se encontraron ventas en el rango seleccionado</p>
+              </div>
+            </Card>
+        ) : null}
+      </div>
+  )
+}

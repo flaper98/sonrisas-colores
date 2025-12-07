@@ -13,4 +13,5 @@ export interface Rental {
     client_name:string
     client_dni:string
     notes:string
+    payment_method: string
 }

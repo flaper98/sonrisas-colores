@@ -103,12 +103,12 @@ export function RentalsTable({
                                 <td className="px-4 py-4 text-center">
                     <span
                         className={`px-2 py-1 rounded text-xs font-semibold ${
-                            r.discount_applied
+                            r.payment_method
                                 ? "bg-purple-100 text-purple-700"
                                 : "bg-blue-100 text-blue-700"
                         }`}
                     >
-                      {r.discount_applied ? "YAPE" : "EFECTIVO"}
+                      {r.payment_method}
                     </span>
                                 </td>
 

@@ -62,9 +62,9 @@ export function SalesList({ sales, onEdit, onDelete }: SalesListProps) {
             <table className="w-full text-sm">
                 <thead>
                 <tr className="bg-gray-50 border-b">
-                    <Th>Venta</Th>
-                    <Th>Total</Th>
-                    <Th>Hora</Th>
+                    <Th className="text-left">Venta</Th>
+                    <Th className="text-right">Total</Th>
+                    <Th className="text-center">Hora</Th>
                     <Th className="text-center">Acciones</Th>
                 </tr>
                 </thead>
@@ -77,7 +77,7 @@ export function SalesList({ sales, onEdit, onDelete }: SalesListProps) {
                             className="bg-yellow-50 font-semibold border-b cursor-pointer hover:bg-yellow-100 transition"
                             onClick={() => toggleSale(sale.id)}
                         >
-                            <Td>
+                            <Td className="text-left">
                                 <div className="flex items-center gap-2">
                                     {openSale === sale.id ? (
                                         <ChevronDown className="w-4 h-4" />
@@ -88,9 +88,9 @@ export function SalesList({ sales, onEdit, onDelete }: SalesListProps) {
                                 </div>
                             </Td>
 
-                            <Td>S/ {formatPrice.format(Number(sale.total))}</Td>
+                            <Td className="text-right">S/ {formatPrice.format(Number(sale.total))}</Td>
 
-                            <Td>{formatHour(sale.created_at)}</Td>
+                            <Td className="text-center">{formatHour(sale.created_at)}</Td>
 
                             <Td className="text-center">
                                 <div className="flex justify-center gap-2">
@@ -127,8 +127,8 @@ export function SalesList({ sales, onEdit, onDelete }: SalesListProps) {
                                         <table className="w-full text-sm">
                                             <thead className="bg-gray-100">
                                             <tr>
-                                                <Th>Producto</Th>
-                                                <Th>Categoría</Th>
+                                                <Th className="text-left">Producto</Th>
+                                                <Th className="text-left">Categoría</Th>
                                                 <Th className="text-center">Cantidad</Th>
                                                 <Th className="text-right">Precio Unit.</Th>
                                                 <Th className="text-right">Subtotal</Th>
@@ -141,20 +141,20 @@ export function SalesList({ sales, onEdit, onDelete }: SalesListProps) {
                                                 const subtotal = Number(item.subtotal) || price * item.quantity;
 
                                                 return (
-                                                    <tr key={`item-${sale.id}-${idx}`} className="border-b">
-                                                        <Td>{item.product_name}</Td>
+                                                    <tr key={`item-${sale.id}-${idx}`} className="border-b hover:bg-gray-50 transition">
+                                                        <Td className="text-left">{item.product_name}</Td>
 
-                                                        <Td>
-                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
-                                    {item.category}
-                                  </span>
+                                                        <Td className="text-left">
+                                                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
+                                                            {item.category}
+                                                          </span>
                                                         </Td>
 
                                                         <Td className="text-center">{item.quantity}</Td>
 
                                                         <Td className="text-right">S/ {price.toFixed(2)}</Td>
 
-                                                        <Td className="text-right font-bold text-accent">
+                                                        <Td className="text-right font-bold text-yellow-600">
                                                             S/ {subtotal.toFixed(2)}
                                                         </Td>
                                                     </tr>

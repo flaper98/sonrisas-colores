@@ -23,6 +23,8 @@ function normalizeRental(row: any) {
         client_name: row.client_name || "",
         client_dni: row.client_dni || "",
 
+        payment_method: row.payment_method || "Efectivo", // Nuevo campo
+
         notes: row.notes,
         status: row.status,
 
@@ -70,9 +72,9 @@ export async function POST(request: Request) {
                 product_id, num_children, duration_minutes,
                 start_time, end_time, total_price,
                 discount_applied, discount_amount, notes,
-                client_name, client_dni
+                client_name, client_dni, payment_method
             )
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
                  RETURNING *`,
             [
                 body.product_id || null,
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
                 body.notes || null,
                 body.client_name || null,
                 body.client_dni || null,
+                body.payment_method || "Efectivo", // Nuevo campo
             ]
         )
 
@@ -95,4 +98,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Failed to create rental" }, { status: 500 })
     }
 }
-

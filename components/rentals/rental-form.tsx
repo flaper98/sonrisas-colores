@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Save, X, Info, Tag } from "lucide-react"
+import { Save, X, Info, Tag, CreditCard, Banknote, Smartphone } from "lucide-react"
 import type { RentalFormData } from "@/components/types/rentalFormData"
 
 interface RentalFormProps {
@@ -21,7 +21,6 @@ const toDatetimeLocal = (dateString: string) => {
   return date.toISOString().slice(0, 16);
 };
 
-
 const PRICING_TABLE = {
   15: 10,
   30: 15,
@@ -29,6 +28,13 @@ const PRICING_TABLE = {
   90: 40,
   120: 50,
 }
+
+const PAYMENT_METHODS = [
+  { value: "Efectivo", label: "Efectivo", icon: Banknote, color: "bg-green-50 border-green-300 text-green-700" },
+  { value: "Tarjeta", label: "Tarjeta", icon: CreditCard, color: "bg-blue-50 border-blue-300 text-blue-700" },
+  { value: "Yape", label: "Yape", icon: Smartphone, color: "bg-purple-50 border-purple-300 text-purple-700" },
+  { value: "Plin", label: "Plin", icon: Smartphone, color: "bg-orange-50 border-orange-300 text-orange-700" },
+]
 
 const getLocalDateTime = () => {
   const now = new Date()
@@ -59,6 +65,7 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
         duration_minutes: rentalToEdit.duration_minutes,
         total_price: rentalToEdit.total_price,
         start_time: toDatetimeLocal(rentalToEdit.start_time),
+        payment_method: rentalToEdit.payment_method || "Efectivo",
       }
     }
 
@@ -69,6 +76,7 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
       duration_minutes: 30,
       total_price: 15,
       start_time: getLocalDateTime(),
+      payment_method: "Efectivo",
     }
   })
 
@@ -310,6 +318,38 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
                   />
                 </div>
               </details>
+            </div>
+          </div>
+
+          {/* MÉTODO DE PAGO */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase">
+              Método de Pago
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {PAYMENT_METHODS.map((method) => {
+                const Icon = method.icon
+                const isSelected = formData.payment_method === method.value
+                return (
+                    <button
+                        key={method.value}
+                        type="button"
+                        disabled={!!rentalToEdit && !isRealEdit}
+                        onClick={() => setFormData({ ...formData, payment_method: method.value })}
+                        className={`
+                      p-2.5 rounded-lg border-2 transition-all text-center flex flex-col items-center gap-1
+                      ${isSelected
+                            ? `${method.color} border-current font-semibold shadow-sm`
+                            : 'border-gray-200 bg-white hover:border-gray-300 text-gray-600'
+                        }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                    >
+                      <Icon className={`w-5 h-5 ${isSelected ? '' : 'text-gray-400'}`} />
+                      <span className="text-xs font-medium">{method.label}</span>
+                    </button>
+                )
+              })}
             </div>
           </div>
 
