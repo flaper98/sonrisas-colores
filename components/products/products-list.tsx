@@ -6,15 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Edit2, Trash2, Search, Filter } from "lucide-react"
 import type { Product } from "@/components/types/product"
 
-/*interface Product {
-  id: number
-  name: string
-  category: string
-  price: number
-  quantity: number
-  description?: string
-  minStock?: number
-}*/
 
 interface ProductsListProps {
   products: Product[]

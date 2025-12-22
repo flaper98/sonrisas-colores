@@ -90,84 +90,72 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params
-        const categoryId = Number.parseInt(id, 10)
+        const { id } = await params;
+        const categoryId = Number(id);
 
-        // ✅ 1. Verificar si la categoría tiene productos asociados
+        // 1. Verificar si hay productos asociados
         const productsCheck = await query(
-            `SELECT COUNT(*) as count 
-       FROM products 
-       WHERE category = (SELECT name FROM categories WHERE id = $1)`,
+            `SELECT COUNT(*) AS count
+             FROM products
+             WHERE id = $1`,
             [categoryId]
-        )
+        );
 
-        const productsCount = Number(productsCheck.rows[0]?.count || 0)
-
-        if (productsCount > 0) {
+        if (Number(productsCheck.rows[0].count) > 0) {
             return NextResponse.json(
                 {
                     error: "Cannot delete category",
-                    details: `Esta categoría no se puede eliminar porque tiene ${productsCount} producto(s) asociado(s). Primero cambia o elimina esos productos.`,
-                },
-                { status: 409 } // 409 Conflict
-            )
-        }
-
-        // ✅ 2. Verificar si la categoría tiene alquileres asociados
-        const rentalsCheck = await query(
-            `SELECT COUNT(*) as count 
-       FROM rentals 
-       WHERE category = (SELECT name FROM categories WHERE id = $1)`,
-            [categoryId]
-        )
-
-        const rentalsCount = Number(rentalsCheck.rows[0]?.count || 0)
-
-        if (rentalsCount > 0) {
-            return NextResponse.json(
-                {
-                    error: "Cannot delete category",
-                    details: `Esta categoría no se puede eliminar porque tiene ${rentalsCount} alquiler(es) asociado(s). Primero cambia o elimina esos alquileres.`,
+                    details: `La categoría tiene ${productsCheck.rows[0].count} producto(s) asociados.`,
                 },
                 { status: 409 }
-            )
+            );
         }
 
-        // ✅ 3. Si no tiene productos ni alquileres, eliminar
-        const result = await query(
-            "DELETE FROM categories WHERE id = $1 RETURNING *",
+        // 2. Verificar si hay alquileres asociados
+        const rentalsCheck = await query(
+            `SELECT COUNT(*) AS count
+             FROM rentals
+             WHERE id = $1`,
             [categoryId]
-        )
+        );
+
+        if (Number(rentalsCheck.rows[0].count) > 0) {
+            return NextResponse.json(
+                {
+                    error: "Cannot delete category",
+                    details: `La categoría tiene ${rentalsCheck.rows[0].count} alquiler(es) asociados.`,
+                },
+                { status: 409 }
+            );
+        }
+
+        // 3. Eliminar categoría
+        const result = await query(
+            `DELETE FROM categories WHERE id = $1 RETURNING *`,
+            [categoryId]
+        );
 
         if (result.rows.length === 0) {
             return NextResponse.json(
                 { error: "Category not found" },
                 { status: 404 }
-            )
+            );
         }
 
         return NextResponse.json({
             message: "Category deleted successfully",
             category: result.rows[0],
-        })
-    } catch (error: any) {
-        console.error("DELETE category error:", error)
+        });
 
-        // Manejar error de constraint de PostgreSQL
-        if (error.code === "23503") {
-            return NextResponse.json(
-                {
-                    error: "Cannot delete category",
-                    details:
-                        "Esta categoría está siendo usada en productos o alquileres. No se puede eliminar.",
-                },
-                { status: 409 }
-            )
-        }
+    } catch (error: any) {
+        console.error("DELETE category error:", error);
 
         return NextResponse.json(
-            { error: "Failed to delete category", details: String(error) },
+            {
+                error: "Failed to delete category",
+                details: error.message ?? String(error),
+            },
             { status: 500 }
-        )
+        );
     }
 }

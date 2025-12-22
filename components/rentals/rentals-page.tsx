@@ -47,6 +47,12 @@ export function RentalsPage() {
       setLoading(false);
     }
   };
+  const totalIncome = filtered.reduce(
+      (acc, r) => acc + (r.total_price ?? 0),
+      0
+  );
+
+  const totalRentals = filtered.length;
 
   // ==========================
   //   FILTROS AVANZADOS
@@ -379,6 +385,37 @@ export function RentalsPage() {
             </Button>
           </div>
         </div>
+
+        {/* ======================
+  RESUMEN DE INGRESOS
+====================== */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          {/* Total Ingresos */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-yellow-700">Ingresos por Alquileres</p>
+              <p className="text-3xl font-bold text-yellow-900">
+                S/ {totalIncome.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="text-yellow-400 text-4xl">💰</div>
+          </div>
+
+          {/* Cantidad de alquileres */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-blue-700">Alquileres registrados</p>
+              <p className="text-3xl font-bold text-blue-900">
+                {totalRentals}
+              </p>
+            </div>
+
+            <div className="text-blue-400 text-4xl">🧸</div>
+          </div>
+        </div>
+
 
         {/* ======================
           FORMULARIO

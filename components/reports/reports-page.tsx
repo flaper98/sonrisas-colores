@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { Download, FileText, Table, Calendar, TrendingUp } from "lucide-react"
+import { Download, FileText, Table, Calendar, TrendingUp, DollarSign } from "lucide-react"
 
 export function ReportsPage() {
   const [activeTab, setActiveTab] = useState<"rentals" | "products">("rentals")
@@ -72,6 +72,11 @@ function RentalReports() {
     return `${day}/${month}/${year}`
   }
 
+  // Calcular el total acumulado
+  const calculateTotal = () => {
+    return reportData.reduce((sum, item) => sum + (Number(item.total) || 0), 0)
+  }
+
   const fetchRentalsByDateRange = async () => {
     if (!startDate || !endDate) {
       toast.error("Por favor seleccione ambas fechas")
@@ -112,15 +117,15 @@ function RentalReports() {
   const handleExportPDF = async () => {
     try {
       toast.loading("Generando PDF...")
-
       const jsPDF = (await import("jspdf")).default
       const autoTable = (await import("jspdf-autotable")).default
 
       const doc = new jsPDF()
       const start = formatDateNoTimezone(startDate)
       const end = formatDateNoTimezone(endDate)
-      const title = `REPORTE DE ALQUILERES\nDesde ${start}  Hasta ${end}`
+      const total = calculateTotal()
 
+      const title = `REPORTE DE ALQUILERES\nDesde ${start} Hasta ${end}`
       doc.setFontSize(14)
       doc.text(title, 105, 15, { align: "center" })
 
@@ -137,6 +142,8 @@ function RentalReports() {
         startY: 30,
         head: [["FECHA", "CLIENTE", "DNI", "CANTIDAD", "ESTADO", "TOTAL"]],
         body: tableData,
+        foot: [["", "", "", "", "TOTAL GENERAL:", `S/ ${total.toFixed(2)}`]],
+        footStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }
       })
 
       doc.save(`alquileres-${Date.now()}.pdf`)
@@ -150,6 +157,8 @@ function RentalReports() {
 
   const handleExportCSV = () => {
     try {
+      const total = calculateTotal()
+
       // Usar punto y coma como delimitador para Excel
       const headers = "FECHA;CLIENTE;DNI;CANTIDAD;ESTADO;TOTAL\n"
 
@@ -160,17 +169,18 @@ function RentalReports() {
         const dni = (item.client_dni || "-").toString()
         const cantidad = (item.num_children || "-").toString()
         const estado = (item.status || "-").toString()
-        const total = (item.total || "-").toString()
+        const totalItem = (item.total || "-").toString()
 
-        return `${fecha};${cliente};${dni};${cantidad};${estado};${total}`
+        return `${fecha};${cliente};${dni};${cantidad};${estado};${totalItem}`
       }).join("\n")
 
-      const csv = headers + rows
+      // Agregar fila de total
+      const totalRow = `\n;;;;TOTAL GENERAL;${total.toFixed(2)}`
+
+      const csv = headers + rows + totalRow
 
       // BOM para UTF-8 y configuración para Excel
-      const blob = new Blob(["\ufeff" + csv], {
-        type: "text/csv;charset=utf-8;"
-      })
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -231,6 +241,50 @@ function RentalReports() {
           </div>
         </Card>
 
+        {/* Tarjeta de Total */}
+        {/* Tarjeta de Resumen */}
+        {/* Tarjeta de Resumen */}
+        {/* Resumen compacto */}
+        {hasSearched && reportData.length > 0 && (
+            <Card className="
+    px-4 py-3
+    bg-primary/5
+    border border-primary/20
+    shadow-none
+    animate-in fade-in slide-in-from-top-1 duration-300
+  ">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+
+                {/* Total */}
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-md">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Total acumulado
+                    </p>
+                    <p className="text-lg font-semibold text-primary">
+                      S/ {calculateTotal().toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Registros */}
+                <div className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">
+          {reportData.length}
+        </span>{" "}
+                  registro{reportData.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            </Card>
+        )}
+
+
+
+
+
         {/* Export buttons */}
         {hasSearched && reportData.length > 0 && (
             <div className="flex gap-2 justify-end animate-in fade-in slide-in-from-top-2 duration-300">
@@ -243,7 +297,6 @@ function RentalReports() {
                 <Download className="w-4 h-4" />
                 Exportar PDF
               </Button>
-
               <Button
                   onClick={handleExportCSV}
                   variant="outline"
@@ -285,7 +338,6 @@ function RentalReports() {
                     <th className="py-3 px-4 text-right font-bold text-gray-700">TOTAL</th>
                   </tr>
                   </thead>
-
                   <tbody>
                   {reportData.map((row, idx) => (
                       <tr
@@ -297,13 +349,15 @@ function RentalReports() {
                         <td className="py-3 px-4">{row.client_dni || "-"}</td>
                         <td className="py-3 px-4 text-center">{row.num_children || "-"}</td>
                         <td className="py-3 px-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          row.status === "completed" || row.status === "Completado"
-                              ? "bg-green-100 text-green-700"
-                              : row.status === "pending" || row.status === "Pendiente"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                      }`}>
+                      <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              row.status === "completed" || row.status === "Completado"
+                                  ? "bg-green-100 text-green-700"
+                                  : row.status === "pending" || row.status === "Pendiente"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-gray-100 text-gray-700"
+                          }`}
+                      >
                         {row.status || "-"}
                       </span>
                         </td>
@@ -313,6 +367,16 @@ function RentalReports() {
                       </tr>
                   ))}
                   </tbody>
+                  <tfoot className="bg-primary/5 border-t-2 border-primary">
+                  <tr>
+                    <td colSpan={5} className="py-3 px-4 text-right font-bold text-gray-700">
+                      TOTAL GENERAL:
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-primary text-lg">
+                      S/ {calculateTotal().toFixed(2)}
+                    </td>
+                  </tr>
+                  </tfoot>
                 </table>
               </div>
             </Card>
@@ -341,6 +405,11 @@ function ProductReports() {
     if (!dateString) return "-"
     const [year, month, day] = dateString.split("-")
     return `${day}/${month}/${year}`
+  }
+
+  // Calcular el total acumulado
+  const calculateTotal = () => {
+    return reportData.reduce((sum, item) => sum + (Number(item.total) || 0), 0)
   }
 
   const fetchProductsByDateRange = async () => {
@@ -383,15 +452,15 @@ function ProductReports() {
   const handleExportPDF = async () => {
     try {
       toast.loading("Generando PDF...")
-
       const jsPDF = (await import("jspdf")).default
       const autoTable = (await import("jspdf-autotable")).default
 
       const doc = new jsPDF()
       const start = formatDateNoTimezone(startDate)
       const end = formatDateNoTimezone(endDate)
-      const title = `REPORTE DE VENTAS\nDesde ${start}  Hasta ${end}`
+      const total = calculateTotal()
 
+      const title = `REPORTE DE VENTAS\nDesde ${start} Hasta ${end}`
       doc.setFontSize(14)
       doc.text(title, 105, 15, { align: "center" })
 
@@ -407,6 +476,8 @@ function ProductReports() {
         startY: 30,
         head: [["FECHA", "PRODUCTO", "CANTIDAD", "PRECIO UNIT.", "TOTAL"]],
         body: tableData,
+        foot: [["", "", "", "TOTAL GENERAL:", `S/ ${total.toFixed(2)}`]],
+        footStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }
       })
 
       doc.save(`ventas-${Date.now()}.pdf`)
@@ -420,6 +491,8 @@ function ProductReports() {
 
   const handleExportCSV = () => {
     try {
+      const total = calculateTotal()
+
       // Usar punto y coma como delimitador para Excel
       const headers = "FECHA;PRODUCTO;CANTIDAD;PRECIO UNITARIO;TOTAL\n"
 
@@ -429,17 +502,18 @@ function ProductReports() {
         const producto = (item.product_name || "-").toString()
         const cantidad = (item.quantity || "-").toString()
         const precioUnit = (item.unit_price || "-").toString()
-        const total = (item.total || "-").toString()
+        const totalItem = (item.total || "-").toString()
 
-        return `${fecha};${producto};${cantidad};${precioUnit};${total}`
+        return `${fecha};${producto};${cantidad};${precioUnit};${totalItem}`
       }).join("\n")
 
-      const csv = headers + rows
+      // Agregar fila de total
+      const totalRow = `\n;;;TOTAL GENERAL;${total.toFixed(2)}`
+
+      const csv = headers + rows + totalRow
 
       // BOM para UTF-8 y configuración para Excel
-      const blob = new Blob(["\ufeff" + csv], {
-        type: "text/csv;charset=utf-8;"
-      })
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -500,6 +574,45 @@ function ProductReports() {
           </div>
         </Card>
 
+        {/* Tarjeta de Total */}
+        {/* Resumen compacto */}
+        {hasSearched && reportData.length > 0 && (
+            <Card className="
+    px-4 py-3
+    bg-primary/5
+    border border-primary/20
+    shadow-none
+    animate-in fade-in slide-in-from-top-1 duration-300
+  ">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+
+                {/* Total */}
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-md">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Total General
+                    </p>
+                    <p className="text-lg font-semibold text-primary">
+                      S/ {calculateTotal().toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Registros */}
+                <div className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">
+          {reportData.length}
+        </span>{" "}
+                  registro{reportData.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            </Card>
+        )}
+
+
         {/* Export buttons */}
         {hasSearched && reportData.length > 0 && (
             <div className="flex gap-2 justify-end animate-in fade-in slide-in-from-top-2 duration-300">
@@ -512,7 +625,6 @@ function ProductReports() {
                 <Download className="w-4 h-4" />
                 Exportar PDF
               </Button>
-
               <Button
                   onClick={handleExportCSV}
                   variant="outline"
@@ -553,7 +665,6 @@ function ProductReports() {
                     <th className="py-3 px-4 text-right font-bold text-gray-700">TOTAL</th>
                   </tr>
                   </thead>
-
                   <tbody>
                   {reportData.map((row, idx) => (
                       <tr
@@ -570,6 +681,16 @@ function ProductReports() {
                       </tr>
                   ))}
                   </tbody>
+                  <tfoot className="bg-primary/5 border-t-2 border-primary">
+                  <tr>
+                    <td colSpan={4} className="py-3 px-4 text-right font-bold text-gray-700">
+                      TOTAL GENERAL:
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-primary text-lg">
+                      S/ {calculateTotal().toFixed(2)}
+                    </td>
+                  </tr>
+                  </tfoot>
                 </table>
               </div>
             </Card>

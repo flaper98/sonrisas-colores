@@ -109,7 +109,7 @@ export function RentalForm({ onSubmit, onCancel, rentalToEdit, isRealEdit }: Ren
   }
 
   useEffect(() => {
-    if (!manualPriceEdit && !rentalToEdit) {
+    if (!manualPriceEdit) {
       const autoPrice = calculateAutoPrice(
           formData.num_children,
           formData.duration_minutes,
